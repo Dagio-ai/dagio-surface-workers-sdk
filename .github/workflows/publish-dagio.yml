@@ -1,0 +1,53 @@
+name: Publish Dagio Miniflare
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Dagio release tag containing the patched Workers SDK source
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - name: Validate the requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: '[[ "$RELEASE_TAG" =~ ^dagio-v[0-9]+\.[0-9]+\.[0-9]+-beta-surface\.[0-9]+$ ]]'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          registry-url: https://npm.pkg.github.com
+          scope: '@dagio-ai'
+      - run: pnpm --filter 'miniflare...' install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: pnpm run build --filter=miniflare
+      - run: pnpm --filter miniflare check:type
+      - run: pnpm --filter miniflare test test/plugins/shared/remote-bindings-proxy-client.spec.ts
+      - name: Package the validated Miniflare build
+        working-directory: packages/miniflare
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          node -e 'const p = require("./package.json"); if (p.name !== "miniflare" || !process.env.RELEASE_TAG.startsWith("dagio-v" + p.version + "-surface.")) process.exit(1)'
+          npm pkg set name=@dagio-ai/surface-miniflare "version=${RELEASE_TAG#dagio-v}"
+          npm pkg set 'repository.url=git+https://github.com/Dagio-ai/dagio-surface-workers-sdk.git' 'publishConfig.registry=https://npm.pkg.github.com'
+          npm pkg delete publishConfig.access
+          pnpm pack --out "$RUNNER_TEMP/dagio-miniflare.tgz"
+      - run: npm publish "$RUNNER_TEMP/dagio-miniflare.tgz" --ignore-scripts --tag surface
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
