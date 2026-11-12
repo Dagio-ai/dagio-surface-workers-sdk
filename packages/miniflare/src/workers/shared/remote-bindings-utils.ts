@@ -374,7 +374,9 @@ export function makeRemoteProxyStub(
 		fetch: typeof fetch;
 		connect: never;
 	};
-	const stub = newWebSocketRpcSession(url.href) as unknown as ProxiedService;
+	const stub = newWebSocketRpcSession(url.href, undefined, {
+		closeOnIdle: true,
+	}) as unknown as ProxiedService;
 
 	const headers = metadata
 		? new Headers(

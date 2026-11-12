@@ -40,6 +40,7 @@ minimumReleaseAge: 1440
 # adopted same-day.
 minimumReleaseAgeExclude:
   - "@cloudflare/*"
+  - "@dagio-ai/surface-capnweb"
   # cf is developed in a separate repository and may need to be tested here on
   # the day it is published.
   - "cf"

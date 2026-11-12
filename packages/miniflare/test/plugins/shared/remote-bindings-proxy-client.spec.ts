@@ -91,10 +91,11 @@ describe("remote-bindings proxy client", () => {
 		expect(webSocketConnections).toBe(0);
 	});
 
-	test("opens an RPC WebSocket when an RPC method is called", async ({
+	test("closes the remote RPC WebSocket after a method result is released", async ({
 		expect,
 	}) => {
 		let webSocketConnections = 0;
+		const closed = Promise.withResolvers<void>();
 		const { http: proxyUrl } = await useServer(
 			(req, res) => {
 				res.statusCode = 500;
@@ -102,6 +103,7 @@ describe("remote-bindings proxy client", () => {
 			},
 			(socket) => {
 				webSocketConnections++;
+				socket.once("close", () => closed.resolve());
 				newWebSocketRpcSession(
 					socket as unknown as WebSocket,
 					new EchoRpcTarget()
@@ -114,6 +116,7 @@ describe("remote-bindings proxy client", () => {
 		const response = await mf.dispatchFetch("http://localhost/");
 		expect(await response.text()).toBe("hello");
 		expect(webSocketConnections).toBe(1);
+		await closed.promise;
 	});
 
 	test("opens an RPC WebSocket when an RPC property is awaited", async ({
